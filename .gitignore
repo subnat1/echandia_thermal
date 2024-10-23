@@ -1,0 +1,9 @@
+# Ignore the .venv
+.venv/
+
+# Ignore log files
+*.log
+
+# Ignore IDE settings
+.vscode
+
