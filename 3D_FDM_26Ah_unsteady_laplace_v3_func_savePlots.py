@@ -10,7 +10,7 @@ from datetime import datetime
 
 # V2 shall have heat generation in all cells. 
 
-def laplace_fdm(ah, dcir, c_rate):
+def laplace_fdm(ah, dcir, c_rate, output_dir):
     time_start = time.time()
     print(f"Starting case: {ah}Ah, {c_rate}C")
     # Problem domain
@@ -31,8 +31,8 @@ def laplace_fdm(ah, dcir, c_rate):
     kz = 1.3  # Thermal conductivity in the z direction (W/mK)
 
     # q_gen = 0.65  # Heat generation in W for the center point source
-    I = c_rate * ah
-    q_gen = I * I * dcir
+    I = float(c_rate) * float(ah)
+    q_gen = I * I * float(dcir)
     q_gen_per_cell  = q_gen / (n_cells_x * n_cells_y * n_cells_z) # Heat generation in a single cell, considering heat gen in all cells
     h = 4  # Convective heat transfer coefficient (W/m²K)
     T_inf = 273 + 23  # Ambient temperature (K) = 23 deg. C
@@ -50,17 +50,15 @@ def laplace_fdm(ah, dcir, c_rate):
     T_max_criterion = 273 + 50 # 50 deg. C
 
     # Output
-    output_dir = "./output"
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    curr_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    dir_string = f"{output_dir}/laplace_fdm_{curr_timestamp}"
+
+    
+    dir_string = f"{output_dir}/{ah}Ah_{c_rate}C"
     os.makedirs(dir_string)
     os.chdir(dir_string)
 
     # Result arrays
     T_max = []
-    curr_time = []
+    current_time_list = []
 
     # Heat generation per unit volume (W/m³)
     q_gen_per_volume = q_gen / cell_volume
@@ -77,7 +75,7 @@ def laplace_fdm(ah, dcir, c_rate):
     T = np.ones((n_cells_x, n_cells_y, n_cells_z)) * T_initial  # Set all cells to 300K initially
     T_new = np.copy(T)
 
-    # Loop for time evolution
+    # Loop for time evolution        
     for step in range(num_time_steps):
         for i in range(n_cells_x):
             for j in range(n_cells_y):
@@ -120,15 +118,17 @@ def laplace_fdm(ah, dcir, c_rate):
                             # Adding the heat term here
                             T_new[i, j, k] += dt * ((kx * d2Tdx2 + ky * d2Tdy2 + kz * d2Tdz2) / (rho * cp) + heat_term)
                         
-                        T_max = np.max(T)
 
         # Temperature field update for the next time step
         T = np.copy(T_new)
 
         # Plot temperature at specified times. Slice is through the centre of z.
         current_time = step * dt
+        current_time_list.append(current_time)
+        T_max = 
+
         if np.isclose(current_time, 1) or np.isclose(current_time, 10) or np.isclose(current_time, 100) or \
-        np.isclose(current_time, 1000) or np.isclose(current_time, 2200) or np.isclose(current_time, 3600) or T_max > T_max_criterion:
+        np.isclose(current_time, 1000) or np.isclose(current_time, 2200) or np.isclose(current_time, 3600) or np.max(T) > T_max_criterion:
             plt.imshow(T[:, :, n_cells_z // 2], origin='lower', extent=[0, Lx*1000, 0, Ly*1000], cmap='hot', interpolation='nearest')
             cbar = plt.colorbar(label='Temperature (K)')
             cbar.ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f'{x:.2f}'))  # Format colorbar to 2 decimal places
@@ -139,11 +139,12 @@ def laplace_fdm(ah, dcir, c_rate):
             plt.savefig(f"Temperature_{ah}Ah_{c_rate}C_{current_time}s.png")
 
         # Exit if T_max_criterion is reached
-        if T_max > T_max_criterion:
+        if np.max(T) > T_max_criterion:
             break
 
     # Final temp at the centre cell
     center_temp = T[n_cells_x // 2, n_cells_y // 2, n_cells_z // 2]
+    print(center_temp)
     # print(f'Steady-state temperature at the center after 3650 seconds: {center_temp:.2f} K')
 
 
@@ -153,19 +154,16 @@ def laplace_fdm(ah, dcir, c_rate):
 
     # Write stuff to output file
     fw = open("case_info.txt", "w+")
-    fw.write(f"\
-             Cell capacity          : {ah} Ah\n\
-             Cell DCIR              : {dcir} Ohms\
-             C_rate                 : {c_rate} C\
-             T_max                  : {T_max} K\
-             Cell with T_max        : {i},{j},{k}\
-             Time to reach T_max    : {current_time} s
-             Simulation run time    : {time_exec} s\             
-             ")
+    fw.write(f"""
+Cell capacity          : {ah} Ah\n\
+Cell DCIR              : {dcir} Ohms\n\
+C_rate                 : {c_rate} C\n\
+T_max                  : {np.max(T)} K\n\
+Cell with T_max        : {i},{j},{k}\n\
+Time to reach T_max    : {current_time} s\n\
+Simulation run time    : {time_exec} s\n\
+            """)             
     fw.close()
-
-    os.chdir("..")
-
 
 # Define input loop, call the function and write outputs
 
@@ -178,10 +176,15 @@ fr = open(input_file, "r")
 cases = fr.readlines()
 fr.close()
 
+# Prepare output dir
+# Get program exec dir
+pwd = os.path.dirname(os.path.abspath(__file__))
+curr_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+output_dir = f"{pwd}/output_fdm_laplace_{curr_timestamp}"
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
+
 for case in cases:
     case_params = case.split(",")
-    laplace_fdm(case_params[0], case_params[1], case_params[2])
-
-    
-
-
+    laplace_fdm(case_params[0], case_params[1], case_params[2].replace("\n", ""), output_dir)
