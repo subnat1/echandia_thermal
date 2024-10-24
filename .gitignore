@@ -7,3 +7,5 @@
 # Ignore IDE settings
 .vscode
 
+# Outputs
+output/
