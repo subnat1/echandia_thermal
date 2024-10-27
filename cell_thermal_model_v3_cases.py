@@ -71,7 +71,7 @@ class Cell3D:
     def create_plot(self, step_time):        
         plot_title = ["Cell Center-section","Cell Body"]
         plot_data = [self.T[:, :,0],self.T[:, :,self.nz//2]]
-        for data,title in zip(plot_data,plot_title):
+        for data, title in zip(plot_data, plot_title):
             plt.clf()
             min_val = np.min(data)
             max_val = np.max(data)               
