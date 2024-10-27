@@ -152,6 +152,7 @@ cases = fr.readlines()
 fr.close()
 
 for case in cases:
+    case = case.replace("\n", "")
     print(f"Running case: {case.replace("\n","")}")
     case_params = case.split(",")
     # main_func(case_params[0], case_params[1], case_params[2].replace("\n", ""), output_dir)
