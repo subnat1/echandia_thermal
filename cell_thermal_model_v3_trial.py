@@ -14,6 +14,9 @@ from datetime import timedelta
 
 # %%
 class Cell3D:
+
+    T_threshold = 273 + 50 # K # 50 deg C
+
     def __init__(self,name,gen_path):
         self.save_path = join(gen_path, name)
         if not exists(self.save_path):
@@ -130,6 +133,9 @@ class Cell3D:
                 self.min_T.append(min_temp)
                 if step_time in timesteps:
                     self.create_plot(step_time)
+
+                if max_temp > self.T_threshold:
+                    break
             
 
 # %%
