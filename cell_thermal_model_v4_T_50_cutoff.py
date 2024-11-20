@@ -1,3 +1,8 @@
+# What is v4?
+# Until v3 we consider that the cell drains out when it hits its C rate
+# Geancarlo wants a back to back charge-discharge. So we we charge and discharge continuously to see how long before the cell hits 50 deg. C
+# dt is changed to 0.1s instead of 0.025s
+
 # %%
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,6 +16,19 @@ import os
 from datetime import datetime
 import sys
 from datetime import timedelta
+import csv
+
+import sys
+
+# Check if an argument is passed
+if len(sys.argv) < 2:
+    print("Usage: python your_script.py <input_file_name>")
+    sys.exit(1)
+
+# BCs
+T_init  = 273 + 20 # K # 20 deg. C
+T_inf   = 273 + 25 # K # 25 deg. C
+h       = 2 # W/m2.K
 
 # %%
 class Cell3D:
@@ -94,12 +112,19 @@ class Cell3D:
         save_path = join(self.save_path,"temperature_profile.jpg")
         plt.savefig(save_path)
 
-    def simulate(self, timesteps):
+    def simulate(self, case, timesteps):
+        global T_inf
+        global T_init
         self.time = []
         self.mean_T = []
         self.max_T = []
         self.min_T = []
+        max_temp = T_init
+        # step_list = []
+        # max_temp_list = []
+        output_dict = {}
         for step in range(self.Nt):
+            print (f"Current case: {case}; Current step: {step}; T_max = {max_temp} ")
             for i in range(self.nx):
                 for j in range(self.ny):
                     for k in range(self.nz):
@@ -120,9 +145,10 @@ class Cell3D:
                             d2Tdy2 = (self.T[i,j+1,k] - 2*self.T[i,j,k] + self.T[i,j-1,k])/self.dy**2
                             d2Tdz2 = (self.T[i,j,k+1] - 2*self.T[i,j,k] + self.T[i,j,k-1])/self.dz**2
                             self.T_new[i,j,k] += self.dt*(self.q_gen_cell+(self.kx*d2Tdx2 + self.ky*d2Tdy2 + self.kz*d2Tdz2)/(self.rho*self.cp))
+        
                             
             self.T = np.copy(self.T_new)         
-            if (step*self.dt).is_integer():
+            if (step * self.dt).is_integer():
                 step_time = step*self.dt
                 self.time.append(step_time)
                 mean_temp = np.mean(self.T)
@@ -131,10 +157,26 @@ class Cell3D:
                 self.mean_T.append(mean_temp)
                 self.max_T.append(max_temp)
                 self.min_T.append(min_temp)
+
+                # append the lists step_list and max_temp_list
+                # step_list.append(step_list)
+                # max_temp_list.append(max_temp)
+                output_dict[step] = max_temp
+
                 if step_time in timesteps:
                     self.create_plot(step_time)
 
                 if max_temp > self.T_threshold:
+                    # write step_list and max_temp_list to a file and escape
+                    # filename of the form: {case}_data.csv
+                    # Write to CSV file
+                    with open(f"{self.save_path}/{case}.csv", 'w+', newline='') as file:
+                        writer = csv.writer(file)
+                        # Write the header (keys)
+                        writer.writerow(["step", "T_max"])
+                        # Write the key-value pairs
+                        for key, value in output_dict.items():
+                            writer.writerow([key, value])
                     break
             
 
@@ -149,7 +191,12 @@ if not os.path.exists(gen_path):
 
 
 # Check for the input file. If NA, raise exception and exit
-input_file = "./input.txt"
+# Get the file name from the arguments
+input_file = sys.argv[1]
+
+# print(f"The file name you provided is: {input_file}")
+
+# input_file = "./input_test.txt"
 if not os.path.exists(input_file):
     print(f"Input file missing. Create input.txt with run cases: Ah, DCIR, C_rate")
     sys.exit(1)
@@ -169,11 +216,6 @@ for case in cases:
     dcir  = case_params[1]
     q_gen = I * I * float(dcir)
 
-    # BCs
-    T_init  = 273 + 20 # K # 20 deg. C
-    T_inf   = 273 + 25 # K # 25 deg. C
-    h       = 2 # W/m2.K
-
     cell = Cell3D(f"{c_rate}C",f"{gen_path}/jpegs")
 
     cell.define_cell_dimensions(0.115,0.105,0.022)
@@ -181,15 +223,13 @@ for case in cases:
     cell.define_cell_thermal_properties(T_init, 36, 36, 1.3, 1200, q_gen, 2032)
     cell.define_heat_sink_properties(2,298,2,298,2,298,2,298,2,298,2,298)
     # cell.define_timestep(0.025,3601)
-    # cell.define_timestep(0.025, (3600 / float(c_rate)) + 1)
-    cell.define_timestep(0.025, 10000 + 1) # max T is given as 10000, irrespective of the cell capacity, with the only cutoff being 50 deg.C
+    # cell.define_timestep(0.1, (3600 / float(c_rate)) + 1)
+    cell.define_timestep(0.1, 10000 + 1) # max T is given as 10000, irrespective of the cell capacity, with the only cutoff being 50 deg.C
     cell.perform_base_computations()
     cell.create_matrices()
     # timesteps = [0,1,10,30,60,100,240,360]
     # timesteps = list(range(0, 3601, 10))
     timesteps = list(range(0, 10001, 10))
     
-    cell.simulate(timesteps)
+    cell.simulate(case, timesteps)
     cell.create_graph()
-
-
