@@ -216,7 +216,7 @@ for case in cases:
     dcir  = case_params[1]
     q_gen = I * I * float(dcir)
 
-    cell = Cell3D(f"{c_rate}C",f"{gen_path}/jpegs")
+    cell = Cell3D(f"{c_rate}C",f"{gen_path}/results")
 
     cell.define_cell_dimensions(0.115,0.105,0.022)
     cell.generate_grid(20,20,10)
