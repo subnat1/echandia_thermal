@@ -53,13 +53,14 @@ class Cell3D:
         self.dy = self.ly/self.ny
         self.dz = self.lz/self.nz
     
-    def define_cell_thermal_properties(self, T_init, kx, ky, kz, cp, q_gen, rho):
+    def define_cell_thermal_properties(self, T_init, kx, ky, kz, cp, q_gen_chg, q_gen_dchg, rho):
         self.T_init = T_init
         self.kx = kx
         self.ky = ky
         self.kz = kz
         self.cp = cp
-        self.q_gen = q_gen
+        self.q_gen_chg  = q_gen_chg
+        self.q_gen_dchg = q_gen_dchg
         self.rho = rho
 
     def define_heat_sink_properties(self,hx1,Tx_inf1, hy1,Ty_inf1, hz1, Tz_inf1,hx2,Tx_inf2, hy2,Ty_inf2, hz2, Tz_inf2):
@@ -77,8 +78,10 @@ class Cell3D:
     def perform_base_computations(self):
         self.number_of_cells = self.nx*self.ny*self.nz
         self.cell_volume = self.lx*self.ly*self.lz
-        self.q_gen_per_volume = self.q_gen/self.cell_volume
-        self.q_gen_cell = self.q_gen_per_volume/(self.rho*self.cp)
+        self.q_gen_per_volume_chg   = self.q_gen_chg/self.cell_volume
+        self.q_gen_per_volume_dchg  = self.q_gen_dchg/self.cell_volume
+        self.q_gen_cell_chg     = self.q_gen_per_volume_chg/(self.rho*self.cp)
+        self.q_gen_cell_dchg    = self.q_gen_per_volume_dchg/(self.rho*self.cp)
 
     def create_matrices(self):
         self.T = np.ones((self.nx, self.ny, self.nz))*self.T_init
@@ -123,8 +126,16 @@ class Cell3D:
         # step_list = []
         # max_temp_list = []
         output_dict = {}
+        status = "NA"
         for step in range(self.Nt):
-            print (f"Current case: {case}; Current step: {step}; T_max = {max_temp} ")
+            # Assuming the cycle starts with charging, assign, q_gen_cell values according to chg or dchg
+            if (step*self.dt // (3600 / float(c_rate))) % 2 == 0:
+                status = "Charging"
+                self.q_gen_cell = self.q_gen_cell_chg
+            else:
+                status = "Discharging"
+                self.q_gen_cell = self.q_gen_cell_dchg
+            print (f"Current case: {case}; Status: {status}; Current step: {step}; T_max = {max_temp}; q_gen_cell = {self.q_gen_cell} ")
             for i in range(self.nx):
                 for j in range(self.ny):
                     for k in range(self.nz):
@@ -145,9 +156,8 @@ class Cell3D:
                             d2Tdy2 = (self.T[i,j+1,k] - 2*self.T[i,j,k] + self.T[i,j-1,k])/self.dy**2
                             d2Tdz2 = (self.T[i,j,k+1] - 2*self.T[i,j,k] + self.T[i,j,k-1])/self.dz**2
                             self.T_new[i,j,k] += self.dt*(self.q_gen_cell+(self.kx*d2Tdx2 + self.ky*d2Tdy2 + self.kz*d2Tdz2)/(self.rho*self.cp))
-        
                             
-            self.T = np.copy(self.T_new)         
+            self.T = np.copy(self.T_new)
             if (step * self.dt).is_integer():
                 step_time = step*self.dt
                 self.time.append(step_time)
@@ -161,7 +171,7 @@ class Cell3D:
                 # append the lists step_list and max_temp_list
                 # step_list.append(step_list)
                 # max_temp_list.append(max_temp)
-                output_dict[step] = max_temp
+                output_dict[step_time] = max_temp
 
                 if step_time in timesteps:
                     self.create_plot(step_time)
@@ -198,7 +208,7 @@ input_file = sys.argv[1]
 
 # input_file = "./input_test.txt"
 if not os.path.exists(input_file):
-    print(f"Input file missing. Create input.txt with run cases: Ah, DCIR, C_rate")
+    print(f"Input file missing. Create input.txt with run cases: Ah, DCIR_charge, DCIR_discharge, C_rate")
     sys.exit(1)
 fr = open(input_file, "r")
 cases = fr.readlines()
@@ -211,16 +221,19 @@ for case in cases:
     # main_func(case_params[0], case_params[1], case_params[2].replace("\n", ""), output_dir)
     # Base calcs
     ah = case_params[0]
-    c_rate = case_params[2].replace("\n","")
+    c_rate = case_params[3].replace("\n","")
     I = float(ah) * float(c_rate)
-    dcir  = case_params[1]
-    q_gen = I * I * float(dcir)
+    dcir_charge  = case_params[1]
+    dcir_discharge = case_params[2]
+    q_gen_chg   = I * I * float(dcir_charge)
+    q_gen_dchg  = I * I * float(dcir_discharge)
+
 
     cell = Cell3D(f"{c_rate}C",f"{gen_path}/results")
 
     cell.define_cell_dimensions(0.115,0.105,0.022)
     cell.generate_grid(20,20,10)
-    cell.define_cell_thermal_properties(T_init, 36, 36, 1.3, 1200, q_gen, 2032)
+    cell.define_cell_thermal_properties(T_init, 36, 36, 1.3, 1200, q_gen_chg, q_gen_dchg, 2032)
     cell.define_heat_sink_properties(2,298,2,298,2,298,2,298,2,298,2,298)
     # cell.define_timestep(0.025,3601)
     # cell.define_timestep(0.1, (3600 / float(c_rate)) + 1)
