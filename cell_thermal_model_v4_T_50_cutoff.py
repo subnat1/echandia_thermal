@@ -181,12 +181,12 @@ class Cell3D:
             
 
 # %%
-# gen_path = r"/home/kage-main/Documents/01_Codes/02_projects/Cell_SOC_Model/thermal_model/jpegs"
+# gen_path = r"/home/kage-main/Documents/01_Codes/02_projects/Cell_SOC_Model/thermal_model/results"
 pwd = os.getcwd()
 curr_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 gen_path = f"{pwd}/output_fdm_laplace_{curr_timestamp}"
 if not os.path.exists(gen_path):
-    os.makedirs(f"{gen_path}/jpegs")
+    os.makedirs(f"{gen_path}/results")
 
 
 
